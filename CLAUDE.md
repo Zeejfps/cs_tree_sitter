@@ -1,0 +1,2 @@
+- talk like a real human
+- only leave comments on public methods, comments should be short and to the point and not leak any implementation details

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>TreeSitter.Bindings</RootNamespace>
+    <!-- The interop layer passes UTF-8 buffers to tree-sitter as raw pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <Import Project="..\native\Native.props" />
+
+  <ItemGroup>
+    <!--
+      Content, not None, so the libraries also land in the output of projects
+      that reference this one. The static archives beside them are excluded: they
+      are link-time input for a native AOT publish, not something to copy anywhere.
+      Both extensions, because the archiver that wrote them differs per platform.
+    -->
+    <Content Include="$(NativeArtifactsDir)*"
+             Exclude="$(NativeArtifactsDir)*.a;$(NativeArtifactsDir)*.lib"
+             Link="%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest"
+             Visible="false" />
+  </ItemGroup>
+
+  <Target Name="CheckNativeArtifacts" BeforeTargets="Build">
+    <Error Condition="!Exists('$(NativeArtifactsDir)')"
+           Text="Native tree-sitter artifacts are missing for '$(NativeArtifactsRid)'. Run 'dotnet run native/build.cs' to produce them." />
+  </Target>
+
+</Project>

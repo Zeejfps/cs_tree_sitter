@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    Locates the artifacts native/build.cs produces. Imported rather than placed in
+    Directory.Build.props because the default below reads a property the SDK has
+    not set that early; import it from a project body, after the SDK's own props.
+
+    Two kinds of consumer need it: TreeSitter.Bindings copies the shared libraries
+    out of this directory, and a native AOT publish links the static archive out
+    of it.
+  -->
+  <PropertyGroup>
+    <!--
+      Which native/artifacts/<rid>/ directory to use. Defaults to the SDK's own
+      RID so a local build picks up whatever native/build.cs just produced;
+      override it when cross-targeting.
+    -->
+    <NativeArtifactsRid Condition="'$(NativeArtifactsRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</NativeArtifactsRid>
+    <NativeArtifactsDir>$(MSBuildThisFileDirectory)artifacts\$(NativeArtifactsRid)\</NativeArtifactsDir>
+
+    <!--
+      How the static archive in there is named, which follows whichever archiver
+      wrote it: lib.exe on Windows, GNU ar everywhere else.
+    -->
+    <StaticLibraryPrefix Condition="!$(NativeArtifactsRid.StartsWith('win'))">lib</StaticLibraryPrefix>
+    <StaticLibraryExtension Condition="$(NativeArtifactsRid.StartsWith('win'))">.lib</StaticLibraryExtension>
+    <StaticLibraryExtension Condition="'$(StaticLibraryExtension)' == ''">.a</StaticLibraryExtension>
+  </PropertyGroup>
+
+</Project>

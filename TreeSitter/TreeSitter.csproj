@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>TreeSitter</RootNamespace>
+    <!--
+      The boundary work this layer does for its callers: pinning the UTF-8 buffer
+      for a parse, calling a grammar's exported accessor through a function
+      pointer, and reading a match's capture array out of cursor-owned memory.
+      Nothing above this project needs unsafe.
+    -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TreeSitter.Bindings\TreeSitter.Bindings.csproj" />
+  </ItemGroup>
+
+</Project>

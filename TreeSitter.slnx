@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TreeSitter/TreeSitter.csproj" />
+  <Project Path="TreeSitter.Bindings/TreeSitter.Bindings.csproj" />
+  <Project Path="TreeSitter.Bindings.Tests/TreeSitter.Bindings.Tests.csproj" />
+  <Project Path="TreeSitter.Tests/TreeSitter.Tests.csproj" />
+</Solution>
