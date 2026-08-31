@@ -55,11 +55,25 @@ const string TreeSitterVersion = "v0.26.9";
 // TypeScript and TSX are two grammars out of one checkout, cloned once and
 // compiled twice; TSX is a separate grammar rather than a file extension because
 // its JSX syntax is ambiguous with type assertions.
+// Owner defaults to the tree-sitter organisation; the community grammars live
+// under tree-sitter-grammars instead.
 Grammar[] grammars =
 [
     new("tree-sitter-c-sharp", "v0.23.5", "."),
     new("tree-sitter-typescript", "v0.23.2", "typescript"),
     new("tree-sitter-typescript", "v0.23.2", "tsx"),
+    new("tree-sitter-javascript", "v0.25.0", "."),
+    new("tree-sitter-json", "v0.24.8", "."),
+    new("tree-sitter-css", "v0.25.0", "."),
+    new("tree-sitter-html", "v0.23.2", "."),
+    new("tree-sitter-yaml", "v0.7.2", ".", "tree-sitter-grammars"),
+    new("tree-sitter-markdown", "v0.5.3", "tree-sitter-markdown", "tree-sitter-grammars"),
+    new("tree-sitter-python", "v0.25.0", "."),
+    new("tree-sitter-go", "v0.25.0", "."),
+    new("tree-sitter-rust", "v0.24.2", "."),
+    new("tree-sitter-java", "v0.23.5", "."),
+    new("tree-sitter-bash", "v0.25.1", "."),
+    new("tree-sitter-c", "v0.24.2", "."),
 ];
 
 const string Usage = "Usage: dotnet run native/build.cs [-- [--clean] [--target <rid>]]";
@@ -187,7 +201,7 @@ Console.WriteLine("Vendoring sources");
 VendorClone("tree-sitter", TreeSitterVersion, "https://github.com/tree-sitter/tree-sitter");
 foreach (var grammar in grammars)
 {
-    VendorClone(grammar.Name, grammar.Tag, $"https://github.com/tree-sitter/{grammar.Name}");
+    VendorClone(grammar.Name, grammar.Tag, $"https://github.com/{grammar.Owner}/{grammar.Name}");
 }
 
 Console.WriteLine($"Building {libraryPrefix}tree-sitter.{sharedExtension}");
@@ -619,4 +633,4 @@ static string ScriptPath([CallerFilePath] string path = "") => path;
 /// Path under the checkout holding <c>src/</c>. "." unless the repository ships
 /// several grammars.
 /// </param>
-record Grammar(string Name, string Tag, string Subdirectory);
+record Grammar(string Name, string Tag, string Subdirectory, string Owner = "tree-sitter");
