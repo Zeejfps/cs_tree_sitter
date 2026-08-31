@@ -138,6 +138,13 @@ string[] positionIndependent = os == "win" ? [] : ["-fPIC"];
 // does.
 string[] deploymentTarget = os == "osx" ? ["-mmacosx-version-min=12.0"] : [];
 
+// -std=c11 leaves __STRICT_ANSI__ defined, and glibc reads that as permission to
+// hide the <endian.h> byte-swap macros tree-sitter's unicode.h calls. Hidden, they
+// compile as implicit declarations that go unnoticed until something links the
+// static archive, where they surface as undefined le16toh/be16toh. _DEFAULT_SOURCE
+// brings them back; it means nothing to the other two platforms' headers.
+string[] languageStandard = ["-std=c11", "-D_DEFAULT_SOURCE"];
+
 string[] linkFlags = os == "win"
     ? [sharedFlag, "-static-libgcc"]
     : [sharedFlag, .. deploymentTarget];
@@ -191,7 +198,7 @@ Console.WriteLine($"Building {libraryPrefix}tree-sitter.{sharedExtension}");
     var objectFile = Path.Combine(intermediate, "tree-sitter.o");
 
     Run(compiler,
-        ["-c", "-O2", .. positionIndependent, .. deploymentTarget, "-std=c11",
+        ["-c", "-O2", .. positionIndependent, .. deploymentTarget, .. languageStandard,
          "-I", Path.Combine(core, "src"),
          "-I", Path.Combine(core, "include"),
          "-o", objectFile,
@@ -203,7 +210,7 @@ Console.WriteLine($"Building {libraryPrefix}tree-sitter.{sharedExtension}");
     // numbers it returns are the ones this artifact was built with.
     var shimObjectFile = Path.Combine(intermediate, "shim.o");
     Run(compiler,
-        ["-c", "-O2", .. positionIndependent, .. deploymentTarget, "-std=c11",
+        ["-c", "-O2", .. positionIndependent, .. deploymentTarget, .. languageStandard,
          "-I", Path.Combine(core, "include"),
          "-o", shimObjectFile,
          Path.Combine(here, "shim.c")]);
@@ -239,7 +246,7 @@ foreach (var grammar in grammars)
         }
 
         var objectFile = Path.Combine(intermediate, $"{grammar.Name}-{grammar.Subdirectory}-{unit}.o");
-        Run(compiler, ["-c", "-O1", .. positionIndependent, .. deploymentTarget, "-std=c11", "-I", source, "-o", objectFile, file]);
+        Run(compiler, ["-c", "-O1", .. positionIndependent, .. deploymentTarget, .. languageStandard, "-I", source, "-o", objectFile, file]);
         objectFiles.Add(objectFile);
     }
 }
@@ -306,7 +313,7 @@ void BuildArchive(string name, string[] sources, string[] includes, string[] def
                    .. defines.Select(define => $"/D{define}"),
                    $"/Fo{objectFile}",
                    source]
-                : ["-c", "-O2", .. positionIndependent, .. deploymentTarget, "-std=c11",
+                : ["-c", "-O2", .. positionIndependent, .. deploymentTarget, .. languageStandard,
                    .. includes.SelectMany(include => (string[])["-I", include]),
                    .. defines.Select(define => $"-D{define}"),
                    "-o", objectFile,
