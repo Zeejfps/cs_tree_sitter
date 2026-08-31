@@ -1,0 +1,82 @@
+name: build
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            shared: tree-sitter.dll
+            grammars: tree-sitter-grammars.dll
+            archive: tree-sitter.lib
+          - os: macos-latest
+            rid: osx-arm64
+            shared: libtree-sitter.dylib
+            grammars: libtree-sitter-grammars.dylib
+            archive: libtree-sitter.a
+          - os: macos-15-intel
+            rid: osx-x64
+            shared: libtree-sitter.dylib
+            grammars: libtree-sitter-grammars.dylib
+            archive: libtree-sitter.a
+          - os: ubuntu-latest
+            rid: linux-x64
+            shared: libtree-sitter.so
+            grammars: libtree-sitter-grammars.so
+            archive: libtree-sitter.a
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache native artifacts
+        id: native-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            native/vendor
+            native/artifacts
+          key: native-${{ matrix.rid }}-${{ hashFiles('native/build.cs') }}
+
+      - name: Report native toolchain
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "CC=${CC:-<unset>}"
+          "${CC:-$([ "$RUNNER_OS" = Windows ] && echo gcc || echo cc)}" --version || true
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" \
+              -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+              -property installationPath || true
+          fi
+
+      - name: Build native libraries
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: dotnet run native/build.cs
+
+      - name: Verify native artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="native/artifacts/${{ matrix.rid }}"
+          for f in "${{ matrix.shared }}" "${{ matrix.grammars }}" "${{ matrix.archive }}"; do
+            test -f "$dir/$f" || { echo "missing $dir/$f"; exit 1; }
+          done
+          ls -l "$dir"
+
+      - name: Build
+        run: dotnet build TreeSitter.slnx -c Debug
+
+      - name: Test
+        run: dotnet test TreeSitter.slnx -c Debug --no-build

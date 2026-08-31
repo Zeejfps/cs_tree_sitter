@@ -15,6 +15,7 @@
       RID so a local build picks up whatever native/build.cs just produced;
       override it when cross-targeting.
     -->
+    <NativeArtifactsRid Condition="'$(NativeArtifactsRid)' == '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</NativeArtifactsRid>
     <NativeArtifactsRid Condition="'$(NativeArtifactsRid)' == ''">$(NETCoreSdkPortableRuntimeIdentifier)</NativeArtifactsRid>
     <NativeArtifactsDir>$(MSBuildThisFileDirectory)artifacts\$(NativeArtifactsRid)\</NativeArtifactsDir>
 
