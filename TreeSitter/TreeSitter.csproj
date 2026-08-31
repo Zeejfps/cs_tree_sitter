@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>TreeSitter</RootNamespace>
-    <RuntimeIdentifiers>osx-arm64;osx-x64;win-x64;linux-x64</RuntimeIdentifiers>
+    <IsRidAgnostic>false</IsRidAgnostic>
     <!--
       The boundary work this layer does for its callers: pinning the UTF-8 buffer
       for a parse, calling a grammar's exported accessor through a function

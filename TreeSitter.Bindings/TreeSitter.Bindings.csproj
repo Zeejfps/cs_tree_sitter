@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>TreeSitter.Bindings</RootNamespace>
-    <RuntimeIdentifiers>osx-arm64;osx-x64;win-x64;linux-x64</RuntimeIdentifiers>
+    <IsRidAgnostic>false</IsRidAgnostic>
     <!-- The interop layer passes UTF-8 buffers to tree-sitter as raw pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
