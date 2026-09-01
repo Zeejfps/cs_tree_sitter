@@ -68,6 +68,9 @@ Grammar[] grammars =
     new("tree-sitter-html", "v0.23.2", "."),
     new("tree-sitter-yaml", "v0.7.2", ".", "tree-sitter-grammars"),
     new("tree-sitter-markdown", "v0.5.3", "tree-sitter-markdown", "tree-sitter-grammars"),
+    // Markdown is two grammars out of one checkout: the block grammar leaves every span of
+    // inline syntax as one node, and the inline grammar is what a host injects into it.
+    new("tree-sitter-markdown", "v0.5.3", "tree-sitter-markdown-inline", "tree-sitter-grammars"),
     new("tree-sitter-python", "v0.25.0", "."),
     new("tree-sitter-go", "v0.25.0", "."),
     new("tree-sitter-rust", "v0.24.2", "."),

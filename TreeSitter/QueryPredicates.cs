@@ -92,6 +92,8 @@ internal sealed class QueryPredicate
 /// passes vacuously, and <c>#match?</c> searches rather than anchoring.
 /// </para>
 /// </remarks>
+internal readonly record struct DecodedPatterns(QueryPredicate[]?[] Predicates, QueryProperty[]?[] Properties);
+
 internal static partial class QueryPredicates
 {
     private const RegexOptions Options = RegexOptions.NonBacktracking | RegexOptions.CultureInvariant;
@@ -100,12 +102,13 @@ internal static partial class QueryPredicates
     /// Decodes every pattern's predicates, or throws naming the one that is wrong.
     /// </summary>
     /// <returns>
-    /// One entry per pattern, <see langword="null"/> where the pattern carries none —
+    /// One entry per pattern in each array, <see langword="null"/> where the pattern carries none —
     /// which is the common case and the one worth keeping out of the match loop.
     /// </returns>
-    public static unsafe QueryPredicate[]?[] Decode(nint query, uint patternCount, Func<uint, string> describePattern)
+    public static unsafe DecodedPatterns Decode(nint query, uint patternCount, Func<uint, string> describePattern)
     {
-        var byPattern = new QueryPredicate[]?[patternCount];
+        var predicatesByPattern = new QueryPredicate[]?[patternCount];
+        var propertiesByPattern = new QueryProperty[]?[patternCount];
 
         for (var pattern = 0u; pattern < patternCount; pattern++)
         {
@@ -116,7 +119,8 @@ internal static partial class QueryPredicates
             }
 
             var steps = new ReadOnlySpan<TSQueryPredicateStep>((void*)start, (int)stepCount);
-            var decoded = new List<QueryPredicate>();
+            var predicates = new List<QueryPredicate>();
+            var properties = new List<QueryProperty>();
 
             var groupStart = 0;
             for (var i = 0; i < steps.Length; i++)
@@ -126,14 +130,86 @@ internal static partial class QueryPredicates
                     continue;
                 }
 
-                decoded.Add(DecodeOne(query, pattern, steps[groupStart..i], describePattern));
+                var group = steps[groupStart..i];
                 groupStart = i + 1;
+
+                if (IsDirective(query, pattern, group, describePattern))
+                {
+                    properties.Add(DecodeDirective(query, pattern, group, describePattern));
+                    continue;
+                }
+
+                predicates.Add(DecodeOne(query, pattern, group, describePattern));
             }
 
-            byPattern[pattern] = [.. decoded];
+            if (predicates.Count > 0)
+            {
+                predicatesByPattern[pattern] = [.. predicates];
+            }
+
+            if (properties.Count > 0)
+            {
+                propertiesByPattern[pattern] = [.. properties];
+            }
         }
 
-        return byPattern;
+        return new DecodedPatterns(predicatesByPattern, propertiesByPattern);
+    }
+
+    private static bool IsDirective(
+        nint query,
+        uint pattern,
+        ReadOnlySpan<TSQueryPredicateStep> group,
+        Func<uint, string> describePattern)
+    {
+        if (group.Length == 0 || group[0].Type != TSQueryPredicateStepType.String)
+        {
+            throw new QueryPredicateException(pattern, "?", "a predicate has to start with its name.", describePattern);
+        }
+
+        return StringValue(query, group[0].ValueId).EndsWith('!');
+    }
+
+    private static QueryProperty DecodeDirective(
+        nint query,
+        uint pattern,
+        ReadOnlySpan<TSQueryPredicateStep> group,
+        Func<uint, string> describePattern)
+    {
+        var name = StringValue(query, group[0].ValueId);
+        if (name != "set!")
+        {
+            throw new QueryPredicateException(
+                pattern,
+                name,
+                "no such directive. This host implements #set! and refuses the rest rather than " +
+                "skipping them -- a directive nobody reads makes the pattern mean something it does not say.",
+                describePattern);
+        }
+
+        var arguments = group[1..];
+        uint? captureId = null;
+        if (arguments.Length > 0 && arguments[0].Type == TSQueryPredicateStepType.Capture)
+        {
+            captureId = arguments[0].ValueId;
+            arguments = arguments[1..];
+        }
+
+        if (arguments.Length is 0 or > 2 || arguments[^1].Type == TSQueryPredicateStepType.Capture)
+        {
+            throw new QueryPredicateException(
+                pattern,
+                name,
+                "takes a key and an optional value, both written as strings, after an optional @capture.",
+                describePattern);
+        }
+
+        return new QueryProperty
+        {
+            Key = StringValue(query, arguments[0].ValueId),
+            Value = arguments.Length == 2 ? StringValue(query, arguments[1].ValueId) : null,
+            CaptureId = captureId,
+        };
     }
 
     /// <summary>

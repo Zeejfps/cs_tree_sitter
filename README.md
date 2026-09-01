@@ -9,7 +9,7 @@ Two layers, deliberately separate:
 | Project | What it is |
 | --- | --- |
 | `TreeSitter.Bindings` | The raw C ABI — `[LibraryImport]` declarations and the structs that cross the boundary by value. No abstractions, no lifetimes. |
-| `TreeSitter` | The wrapper callers actually use: `Parser`, `SyntaxTree`, `Node`, `Query`, `QueryCursor`, with `SafeHandle`-backed lifetimes and predicate evaluation. |
+| `TreeSitter` | The wrapper callers actually use: `Parser`, `SyntaxTree`, `Node`, `Query`, `QueryCursor`, with `SafeHandle`-backed lifetimes, predicate evaluation and `#set!` directives. |
 
 `TreeSitter.Bindings.Tests` pins the ABI — exact byte offsets and row/column
 pairs against known snippets, which is the one assertion a shifted struct field

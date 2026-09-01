@@ -54,18 +54,20 @@ public sealed class Query : IDisposable
     private readonly string[] _captureNames;
     private readonly Dictionary<string, uint> _captureIds;
     private readonly QueryPredicate[]?[] _predicates;
+    private readonly QueryProperty[]?[] _properties;
 
     private Query(
         QueryHandle handle,
         Language language,
         string[] captureNames,
         Dictionary<string, uint> captureIds,
-        QueryPredicate[]?[] predicates)
+        DecodedPatterns patterns)
     {
         _handle = handle;
         _captureNames = captureNames;
         _captureIds = captureIds;
-        _predicates = predicates;
+        _predicates = patterns.Predicates;
+        _properties = patterns.Properties;
         Language = language;
     }
 
@@ -160,13 +162,13 @@ public sealed class Query : IDisposable
                 }
             }
 
-            var compiled = QueryPredicates.Decode(
+            var patterns = QueryPredicates.Decode(
                 query,
                 patternCount,
                 pattern => Describe(sourceBytes, TS.ts_query_start_byte_for_pattern(query, pattern)));
 
             GC.KeepAlive(handle);
-            return new Query(handle, language, names, ids, compiled);
+            return new Query(handle, language, names, ids, patterns);
         }
         catch
         {
@@ -214,6 +216,33 @@ public sealed class Query : IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(captureId, (uint)_captureNames.Length);
 
         return _captureNames[captureId];
+    }
+
+    /// <summary>The <c>#set!</c> properties one pattern declared, empty where it declared none.</summary>
+    public IReadOnlyList<QueryProperty> PropertiesFor(int patternIndex)
+    {
+        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
+        ArgumentOutOfRangeException.ThrowIfNegative(patternIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(patternIndex, _properties.Length);
+
+        return _properties[patternIndex] ?? [];
+    }
+
+    /// <summary>The value one pattern set for <paramref name="key"/>, null for a valueless flag.</summary>
+    public bool TryGetProperty(int patternIndex, string key, out string? value)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        foreach (var property in PropertiesFor(patternIndex))
+        {
+            if (!string.Equals(property.Key, key, StringComparison.Ordinal)) continue;
+
+            value = property.Value;
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     /// <summary>Whether one pattern carries predicates.</summary>
