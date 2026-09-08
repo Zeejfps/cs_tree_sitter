@@ -85,6 +85,52 @@ internal static class Syntax
         }
     }
 
+    /// <summary>
+    /// The whole tree as one string: every node's type, byte span and points, in
+    /// document order.
+    /// </summary>
+    /// <remarks>
+    /// For comparing a tree against another tree of the same text. Every number a
+    /// wrong <see cref="TSInputEdit"/> could shift is in here, which is what makes
+    /// the comparison worth anything — an incrementally parsed tree that is wrong
+    /// is still a tree, and answers every question plausibly.
+    /// </remarks>
+    internal static string Describe(TSNode node)
+    {
+        var description = new StringBuilder();
+        Walk(node, 0);
+        return description.ToString();
+
+        void Walk(TSNode current, int depth)
+        {
+            var start = TS.ts_node_start_point(current);
+            var end = TS.ts_node_end_point(current);
+
+            description
+                .Append(' ', depth * 2)
+                .Append(TypeOf(current))
+                .Append(' ')
+                .Append(TS.ts_node_start_byte(current))
+                .Append("..")
+                .Append(TS.ts_node_end_byte(current))
+                .Append(" (")
+                .Append(start.Row)
+                .Append(',')
+                .Append(start.Column)
+                .Append(")..(")
+                .Append(end.Row)
+                .Append(',')
+                .Append(end.Column)
+                .Append(")\n");
+
+            var count = TS.ts_node_child_count(current);
+            for (uint i = 0; i < count; i++)
+            {
+                Walk(TS.ts_node_child(current, i), depth + 1);
+            }
+        }
+    }
+
     internal static string TypeOf(TSNode node) =>
         Marshal.PtrToStringUTF8(TS.ts_node_type(node))!;
 

@@ -63,6 +63,11 @@ public class TreeSitterTests
         // uint32_t context[4]; const void *id; const TSTree *tree
         Assert.Equal(32, Unsafe.SizeOf<TSNode>());
 
+        // Three uint32_t byte offsets, then three TSPoints. Size alone says little
+        // here -- the fields are interchangeable at this level -- so the order is
+        // pinned by TreeEditTests instead.
+        Assert.Equal(36, Unsafe.SizeOf<TSInputEdit>());
+
         // TSNode node; uint32_t index -- plus padding to pointer alignment
         Assert.Equal(40, Unsafe.SizeOf<TSQueryCapture>());
 

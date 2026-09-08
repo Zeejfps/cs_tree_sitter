@@ -74,6 +74,124 @@ public sealed class SyntaxTree : IDisposable
         }
     }
 
+    /// <summary>
+    /// Applies one edit and re-parses, reusing this tree for the parts the edit did
+    /// not touch. Returns the tree of the new text; this one is consumed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One call, because the two halves are not separately safe.</b> Editing a
+    /// tree moves its spans onto text this object does not have — its buffer is
+    /// still the old file — so an <c>Edit</c> a caller could reach would leave
+    /// <see cref="Node.Text"/> reading the wrong substring, or refusing outright.
+    /// Taking the edit and the bytes together means the tree and the buffer it
+    /// indexes are never apart for longer than this method, and there is no way to
+    /// hand a tree a buffer it was not parsed from.
+    /// </para>
+    /// <para>
+    /// <paramref name="edit"/> has to describe the difference between this tree's
+    /// source and <paramref name="newUtf8Source"/> exactly. The offsets are checked
+    /// against the two buffers for the contradictions that are cheap to spot — a
+    /// start past an end, an end past the buffer it indexes — but an edit can be
+    /// well formed and still describe the wrong change, and that one does not throw:
+    /// it returns a tree that is quietly wrong about a file nobody has. Callers
+    /// maintaining a tree over a buffer they do not fully trust should compare the
+    /// new root's extent against the buffer length and fall back to a fresh parse,
+    /// which is cheap.
+    /// </para>
+    /// <para>
+    /// Only the byte offsets are checked, because only the byte offsets are load
+    /// bearing here: the parser walks <paramref name="newUtf8Source"/> and derives
+    /// every row and column from the text, so the points on <paramref name="edit"/>
+    /// do not change the tree it returns. Supply them correctly anyway — they are
+    /// what the API asks for — but do not expect a wrong one to be caught.
+    /// </para>
+    /// <para>
+    /// The old tree is released whatever happens, including when the re-parse
+    /// throws, so there is no path that leaves an edited tree observable. Refusals
+    /// that happen before the edit — a disposed object, the wrong grammar — leave
+    /// this tree untouched and still usable.
+    /// </para>
+    /// </remarks>
+    /// <param name="parser">
+    /// Must be on the same grammar as this tree. Node type ids are per-grammar, so
+    /// the wrong parser does not fail, it reparses into another language's rules.
+    /// </param>
+    /// <exception cref="ObjectDisposedException">The tree or the parser has been disposed.</exception>
+    /// <exception cref="ArgumentException"><paramref name="parser"/> is on a different grammar.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="edit"/> contradicts itself or the buffers it describes.
+    /// </exception>
+    public SyntaxTree Reparse(Parser parser, in TSInputEdit edit, ReadOnlySpan<byte> newUtf8Source)
+    {
+        ArgumentNullException.ThrowIfNull(parser);
+        EnsureAlive();
+        parser.EnsureAlive();
+
+        if (parser.Language.Handle != Language.Handle)
+        {
+            throw new ArgumentException(
+                "This parser is on a different grammar than the tree it is being asked to re-parse.",
+                nameof(parser));
+        }
+
+        ThrowIfEditIsImpossible(in edit, _source.Length, newUtf8Source.Length);
+
+        try
+        {
+            TS.ts_tree_edit(_handle.DangerousGetHandle(), in edit);
+            GC.KeepAlive(_handle);
+
+            return parser.ParseWith(_handle, newUtf8Source);
+        }
+        finally
+        {
+            Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Rejects the edits that cannot describe any pair of buffers, before one of
+    /// them reaches a tree it would silently corrupt.
+    /// </summary>
+    /// <remarks>
+    /// These are the transpositions and off-by-ones an offset mapping produces
+    /// while it is being written, and they are the only errors in an edit that can
+    /// be caught from here — a plausible edit that is merely wrong is
+    /// indistinguishable from a right one without re-parsing to compare, which is
+    /// the thing the caller came here to avoid.
+    /// </remarks>
+    private static void ThrowIfEditIsImpossible(in TSInputEdit edit, int oldLength, int newLength)
+    {
+        if (edit.StartByte > edit.OldEndByte)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(edit),
+                $"The edit starts at byte {edit.StartByte}, past the byte {edit.OldEndByte} it says it ends at in the old text.");
+        }
+
+        if (edit.StartByte > edit.NewEndByte)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(edit),
+                $"The edit starts at byte {edit.StartByte}, past the byte {edit.NewEndByte} it says it ends at in the new text.");
+        }
+
+        if (edit.OldEndByte > (uint)oldLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(edit),
+                $"The edit ends at byte {edit.OldEndByte} of the old text, which is {oldLength} bytes long.");
+        }
+
+        if (edit.NewEndByte > (uint)newLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(edit),
+                $"The edit ends at byte {edit.NewEndByte} of the new text, which is {newLength} bytes long.");
+        }
+    }
+
     public void Dispose() => _handle.Dispose();
 
     /// <summary>

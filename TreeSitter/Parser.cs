@@ -84,38 +84,7 @@ public sealed class Parser : IDisposable
     /// </para>
     /// </remarks>
     /// <exception cref="ObjectDisposedException">The parser has been disposed.</exception>
-    public unsafe SyntaxTree Parse(ReadOnlySpan<byte> utf8Source)
-    {
-        ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
-
-        var owned = utf8Source.ToArray();
-
-        nint tree;
-        fixed (byte* pinned = owned)
-        {
-            // An empty file pins to null. tree-sitter's string reader would never
-            // dereference it at length zero, but relying on that is relying on an
-            // implementation detail of a library we do not control.
-            byte empty = 0;
-            tree = TS.ts_parser_parse_string(
-                _handle.DangerousGetHandle(),
-                nint.Zero,
-                pinned is null ? &empty : pinned,
-                (uint)owned.Length);
-        }
-
-        GC.KeepAlive(_handle);
-
-        if (tree == nint.Zero)
-        {
-            // Not the syntax-error path: a file that does not parse comes back as a
-            // tree full of ERROR nodes. NULL means the parser had no language or
-            // was cancelled, neither of which this type allows.
-            throw new TreeSitterException("ts_parser_parse_string returned NULL.");
-        }
-
-        return new SyntaxTree(TreeHandle.Adopt(tree), owned, Language);
-    }
+    public SyntaxTree Parse(ReadOnlySpan<byte> utf8Source) => ParseWith(oldTree: null, utf8Source);
 
     /// <summary>
     /// Convenience for sources that are already text — tests, snippets, and
@@ -132,6 +101,57 @@ public sealed class Parser : IDisposable
         ArgumentNullException.ThrowIfNull(source);
         return Parse(Encoding.UTF8.GetBytes(source));
     }
+
+    /// <summary>
+    /// The parse itself, with the previously parsed tree that
+    /// <see cref="SyntaxTree.Reparse"/> has to reuse and a first parse does not have.
+    /// </summary>
+    /// <remarks>
+    /// Internal because the old tree and the bytes are only safe together: the tree
+    /// must already have been edited to describe exactly these bytes, and nothing
+    /// but <see cref="SyntaxTree.Reparse"/> is in a position to know that. Exposing
+    /// it would let any tree be paired with any buffer, which does not fail — it
+    /// returns a corrupt tree.
+    /// </remarks>
+    internal unsafe SyntaxTree ParseWith(TreeHandle? oldTree, ReadOnlySpan<byte> utf8Source)
+    {
+        EnsureAlive();
+
+        var owned = utf8Source.ToArray();
+
+        nint tree;
+        fixed (byte* pinned = owned)
+        {
+            // An empty file pins to null. tree-sitter's string reader would never
+            // dereference it at length zero, but relying on that is relying on an
+            // implementation detail of a library we do not control.
+            byte empty = 0;
+            tree = TS.ts_parser_parse_string(
+                _handle.DangerousGetHandle(),
+                oldTree?.DangerousGetHandle() ?? nint.Zero,
+                pinned is null ? &empty : pinned,
+                (uint)owned.Length);
+        }
+
+        GC.KeepAlive(_handle);
+        GC.KeepAlive(oldTree);
+
+        if (tree == nint.Zero)
+        {
+            // Not the syntax-error path: a file that does not parse comes back as a
+            // tree full of ERROR nodes. NULL means the parser had no language or
+            // was cancelled, neither of which this type allows.
+            throw new TreeSitterException("ts_parser_parse_string returned NULL.");
+        }
+
+        return new SyntaxTree(TreeHandle.Adopt(tree), owned, Language);
+    }
+
+    /// <summary>
+    /// The disposed check, shared so <see cref="SyntaxTree.Reparse"/> can refuse a
+    /// dead parser before it touches the tree it is about to edit.
+    /// </summary>
+    internal void EnsureAlive() => ObjectDisposedException.ThrowIf(_handle.IsClosed, this);
 
     public void Dispose() => _handle.Dispose();
 }

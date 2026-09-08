@@ -8,10 +8,18 @@ namespace TreeSitter.Bindings;
 /// <remarks>
 /// <para>
 /// Deliberately not the whole header. tree-sitter exports a couple of hundred
-/// functions; what is bound here is the surface needed to parse a whole file from
-/// scratch and walk the result with queries, so incremental editing, tree
-/// cursors, ranges, node editing and the wasm store are all absent. Add an entry
-/// point when a caller needs it — an unused binding is an untested binding.
+/// functions; what is bound here is the surface needed to parse a whole file,
+/// re-parse it after an edit, and walk the result with queries, so tree cursors,
+/// ranges and the wasm store are all absent. Add an entry point when a caller
+/// needs it — an unused binding is an untested binding.
+/// </para>
+/// <para>
+/// Incremental editing is bound at its narrowest: <see cref="ts_tree_edit"/> and
+/// the <c>oldTree</c> parameter of <see cref="ts_parser_parse_string"/>, which is
+/// everything a single owner of a tree needs. Handing an edited tree to a second
+/// reader (<c>ts_tree_copy</c>) and shifting nodes, points and ranges outside a
+/// tree (<c>ts_node_edit</c>, <c>ts_point_edit</c>, <c>ts_range_edit</c>) are not
+/// here, for the same reason as everything else that is not.
 /// </para>
 /// <para>
 /// <c>LibraryImport</c> rather than <c>DllImport</c>: marshalling is generated at
@@ -77,8 +85,11 @@ public static partial class TS
     public static partial bool ts_parser_set_language(nint self, nint language);
 
     /// <param name="oldTree">
-    /// <see cref="nint.Zero"/> to parse from scratch. Reusing a previous tree is
-    /// the incremental-editing path, which nothing here binds the rest of.
+    /// <see cref="nint.Zero"/> to parse from scratch, or a tree of the previous
+    /// text that has already been through <see cref="ts_tree_edit"/> — the
+    /// incremental path, where the unchanged subtrees are reused instead of
+    /// re-lexed. Ownership does not move: the old tree is still the caller's to
+    /// delete afterwards.
     /// </param>
     /// <param name="str">
     /// UTF-8 bytes. Every span tree-sitter reports is a byte offset into this
@@ -101,6 +112,19 @@ public static partial class TS
 
     [LibraryImport(LibraryName)]
     public static partial void ts_tree_delete(nint self);
+
+    /// <summary>
+    /// Shifts the tree's spans and points so they describe the text <em>after</em>
+    /// <paramref name="edit"/>, which is what lets the next parse reuse it.
+    /// </summary>
+    /// <remarks>
+    /// Edits the tree in place, so the spans it reported a moment ago are gone —
+    /// between this call and the re-parse it indexes text the caller has and
+    /// tree-sitter does not. The edit must match the change to the bytes exactly;
+    /// nothing validates it, and a wrong one produces a tree rather than an error.
+    /// </remarks>
+    [LibraryImport(LibraryName)]
+    public static partial void ts_tree_edit(nint self, in TSInputEdit edit);
 
     [LibraryImport(LibraryName)]
     public static partial TSNode ts_tree_root_node(nint self);
