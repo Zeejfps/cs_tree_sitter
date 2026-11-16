@@ -79,6 +79,7 @@ Grammar[] grammars =
     new("tree-sitter-c", "v0.24.2", "."),
     new("tree-sitter-toml", "v0.7.0", ".", "tree-sitter-grammars"),
     new("tree-sitter-svelte", "v1.0.2", ".", "tree-sitter-grammars"),
+    new("tree-sitter-kotlin", "0.3.8", ".", "fwcd"),
 ];
 
 const string Usage = "Usage: dotnet run native/build.cs [-- [--clean] [--target <rid>]]";
